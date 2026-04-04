@@ -4,6 +4,8 @@ Cost intelligence platform for AI/LLM workloads. Track, attribute, and optimize 
 
 Self-hosted. No limits. No vendor lock-in.
 
+> **Status: Active Development.** Core ingestion pipeline is working. Dashboard and alerting are in progress. Not yet ready for production use.
+
 ## Architecture
 
 ```
