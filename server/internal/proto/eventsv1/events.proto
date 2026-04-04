@@ -1,0 +1,38 @@
+syntax = "proto3";
+package promptmeter.events.v1;
+option go_package = "github.com/promptmeter/promptmeter/server/internal/proto/eventsv1";
+
+import "google/protobuf/timestamp.proto";
+
+message LLMEvent {
+    uint64 org_id               = 1;
+    string event_id             = 2;
+    string project_id           = 3;
+    google.protobuf.Timestamp timestamp     = 4;
+    google.protobuf.Timestamp inserted_at   = 5;
+    string model                = 6;
+    string provider             = 7;
+    uint32 prompt_tokens        = 8;
+    uint32 completion_tokens    = 9;
+    uint32 total_tokens         = 10;
+    double cost_usd             = 11;
+    uint32 latency_ms           = 12;
+    uint32 status_code          = 13;
+    map<string, string> tags    = 14;
+    string prompt               = 15;
+    string response             = 16;
+    string prompt_hash          = 17;
+    string s3_key               = 18;
+    S3Status s3_status          = 19;
+    uint32 schema_version       = 20;
+}
+
+enum S3Status {
+    S3_STATUS_NONE      = 0;
+    S3_STATUS_PENDING   = 1;
+    S3_STATUS_UPLOADED  = 2;
+}
+
+message EventBatch {
+    repeated LLMEvent events = 1;
+}
