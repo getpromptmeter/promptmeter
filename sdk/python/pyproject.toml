@@ -14,7 +14,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=9.0.2",
-    "openai>=1.82",
+    "openai>=1.109.1",
     "anthropic>=0.52",
 ]
 
