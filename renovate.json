@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "schedule": ["before 10am on monday"],
+  "timezone": "Europe/London",
+  "labels": ["dependencies"],
+  "rangeStrategy": "bump",
+  "packageRules": [
+    {
+      "description": "Go: group all minor/patch updates into a single PR",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "go dependencies (non-major)"
+    },
+    {
+      "description": "Python: group all minor/patch updates into a single PR",
+      "matchManagers": ["pip_requirements", "pep621"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "python dependencies (non-major)"
+    },
+    {
+      "description": "Docker: group all minor/patch updates into a single PR",
+      "matchManagers": ["docker-compose"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "docker images (non-major)"
+    },
+    {
+      "description": "Major updates: separate PRs, no automerge",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "description": "Pin minio/minio: use digest pinning instead of latest",
+      "matchPackageNames": ["minio/minio"],
+      "versioning": "docker",
+      "pinDigests": true
+    }
+  ]
+}
