@@ -1,0 +1,24 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - forbidigo
+
+linters-settings:
+  forbidigo:
+    forbid:
+      - pattern: "fmt\\.Print.*"
+        msg: "use log/slog for structured logging instead of fmt.Print*"
+      - pattern: "log\\.Print.*"
+        msg: "use log/slog for structured logging instead of log.Print*"
+
+issues:
+  exclude-dirs:
+    - internal/proto

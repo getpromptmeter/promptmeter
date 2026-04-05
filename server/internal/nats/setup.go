@@ -4,6 +4,7 @@ package pmqueue
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -28,11 +29,11 @@ func Connect(url string) (*nats.Conn, error) {
 		nats.ReconnectWait(time.Second),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
 			if err != nil {
-				fmt.Printf("nats: disconnected: %v\n", err)
+				slog.Warn("nats: disconnected", "error", err)
 			}
 		}),
 		nats.ReconnectHandler(func(_ *nats.Conn) {
-			fmt.Println("nats: reconnected")
+			slog.Info("nats: reconnected")
 		}),
 	)
 	if err != nil {

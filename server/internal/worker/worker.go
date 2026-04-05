@@ -3,12 +3,15 @@ package worker
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/promptmeter/promptmeter/server/internal/domain"
 	pmqueue "github.com/promptmeter/promptmeter/server/internal/nats"
 	eventsv1 "github.com/promptmeter/promptmeter/server/internal/proto/eventsv1"
 )
+
+const shutdownTimeout = 30 * time.Second
 
 // Worker orchestrates NATS consumers, cost calculation, batch writing, and S3 uploads.
 type Worker struct {
@@ -42,7 +45,9 @@ func NewWorker(
 	}
 }
 
-// Start launches all worker goroutines. It blocks until ctx is cancelled.
+// Start launches all worker goroutines. It blocks until ctx is cancelled,
+// then performs a graceful shutdown: flushes the batch writer and drains
+// in-flight S3 uploads before returning.
 func (w *Worker) Start(ctx context.Context) error {
 	// Start price cache refresh
 	go func() {
@@ -55,7 +60,12 @@ func (w *Worker) Start(ctx context.Context) error {
 	w.s3Uploader.Start(ctx)
 
 	// Start batch writer flush loop
-	go w.batchWriter.Start(ctx)
+	var bwDone sync.WaitGroup
+	bwDone.Add(1)
+	go func() {
+		defer bwDone.Done()
+		w.batchWriter.Start(ctx)
+	}()
 
 	// Start NATS consumers
 	errCh := make(chan error, w.workerCount)
@@ -68,17 +78,35 @@ func (w *Worker) Start(ctx context.Context) error {
 		}()
 	}
 
-	// Wait for context cancellation or error
+	// Wait for context cancellation or fatal consumer error
+	var startErr error
 	select {
 	case <-ctx.Done():
-		w.logger.Info("worker shutting down")
-		return nil
+		w.logger.Info("worker received shutdown signal")
 	case err := <-errCh:
 		if err != nil && ctx.Err() == nil {
-			return err
+			startErr = err
 		}
-		return nil
 	}
+
+	// Graceful shutdown: wait for the batch writer flush loop to finish
+	// (it performs a final flush on context cancellation).
+	w.logger.Info("waiting for batch writer to drain")
+	bwDone.Wait()
+
+	// Flush any remaining events that arrived after the flush loop exited.
+	flushCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := w.batchWriter.Flush(flushCtx); err != nil {
+		w.logger.Error("final batch flush failed", "error", err)
+	}
+
+	// Drain in-flight S3 uploads.
+	w.logger.Info("waiting for in-flight s3 uploads to complete")
+	w.s3Uploader.Drain()
+
+	w.logger.Info("worker shutdown complete")
+	return startErr
 }
 
 func (w *Worker) handleMessage(pbEvent *eventsv1.LLMEvent, ack func() error) error {

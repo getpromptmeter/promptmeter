@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/promptmeter/promptmeter/server/internal/domain"
@@ -18,6 +19,7 @@ type S3Uploader struct {
 	pendingStore storage.PendingEventsStore
 	logger       *slog.Logger
 	uploadCh     chan uploadRequest
+	inflightWg   sync.WaitGroup
 }
 
 type uploadRequest struct {
@@ -62,19 +64,40 @@ func (u *S3Uploader) Start(ctx context.Context) {
 	go u.reconciler(ctx)
 }
 
+// Drain waits for all in-flight S3 uploads to complete.
+// Call this during graceful shutdown after the context has been cancelled.
+func (u *S3Uploader) Drain() {
+	u.inflightWg.Wait()
+}
+
 func (u *S3Uploader) processUploads(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			return
-		case req := <-u.uploadCh:
-			if err := u.uploadEvent(ctx, req.event); err != nil {
-				u.logger.Warn("s3 upload failed, will be reconciled",
-					"event_id", req.event.EventID,
-					"error", err,
-				)
+			// Drain remaining items in the channel before returning.
+			for {
+				select {
+				case req := <-u.uploadCh:
+					u.doUpload(context.Background(), req)
+				default:
+					return
+				}
 			}
+		case req := <-u.uploadCh:
+			u.doUpload(ctx, req)
 		}
+	}
+}
+
+func (u *S3Uploader) doUpload(ctx context.Context, req uploadRequest) {
+	u.inflightWg.Add(1)
+	defer u.inflightWg.Done()
+
+	if err := u.uploadEvent(ctx, req.event); err != nil {
+		u.logger.Warn("s3 upload failed, will be reconciled",
+			"event_id", req.event.EventID,
+			"error", err,
+		)
 	}
 }
 

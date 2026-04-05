@@ -184,11 +184,22 @@ func timeArgs(params DashboardQueryParams) []any {
 	)
 }
 
+// projectFilter returns the SQL fragment and args needed to optionally filter by project_id.
+// If params.ProjectID is empty, it returns an empty string and nil args.
+func projectFilter(params DashboardQueryParams) (string, []any) {
+	if params.ProjectID == "" {
+		return "", nil
+	}
+	return ` AND project_id = {project_id:String}`, []any{clickhouse.Named("project_id", params.ProjectID)}
+}
+
 // GetOverviewKPIs returns aggregated KPIs for a time period from mv_cost_hourly.
 func (s *ClickHouseStore) GetOverviewKPIs(ctx context.Context, params DashboardQueryParams) (*domain.OverviewKPIs, error) {
 	table := selectMV("mv_cost_hourly", params.ProjectID)
+	projSQL, projArgs := projectFilter(params)
 
 	args := timeArgs(params)
+	args = append(args, projArgs...)
 
 	query := fmt.Sprintf(`
 		SELECT
@@ -199,24 +210,8 @@ func (s *ClickHouseStore) GetOverviewKPIs(ctx context.Context, params DashboardQ
 		FROM %s
 		WHERE org_id = {org_id:UInt64}
 		  AND hour >= toDateTime({from:UInt32})
-		  AND hour < toDateTime({to:UInt32})
-	`, table)
-
-	if params.ProjectID != "" {
-		query = fmt.Sprintf(`
-			SELECT
-				coalesce(sum(total_cost), 0) AS total_cost,
-				coalesce(sum(request_count), 0) AS total_requests,
-				coalesce(sum(error_count), 0) AS total_errors,
-				if(count() > 0, avgMerge(avg_latency_ms), 0) AS avg_latency
-			FROM %s
-			WHERE org_id = {org_id:UInt64}
-			  AND project_id = {project_id:String}
-			  AND hour >= toDateTime({from:UInt32})
-			  AND hour < toDateTime({to:UInt32})
-		`, table)
-		args = append(args, clickhouse.Named("project_id", params.ProjectID))
-	}
+		  AND hour < toDateTime({to:UInt32})%s
+	`, table, projSQL)
 
 	row := s.conn.QueryRow(ctx, query, args...)
 
@@ -243,6 +238,10 @@ func (s *ClickHouseStore) GetCostBreakdown(ctx context.Context, params Dashboard
 
 func (s *ClickHouseStore) getCostByModel(ctx context.Context, params DashboardQueryParams, limit int) ([]domain.CostBreakdownItem, error) {
 	table := selectMV("mv_cost_by_model_daily", params.ProjectID)
+	projSQL, projArgs := projectFilter(params)
+
+	args := timeArgs(params)
+	args = append(args, projArgs...)
 
 	query := fmt.Sprintf(`
 		SELECT model, provider,
@@ -252,25 +251,11 @@ func (s *ClickHouseStore) getCostByModel(ctx context.Context, params DashboardQu
 		FROM %s
 		WHERE org_id = {org_id:UInt64}
 		  AND date >= toDate(toDateTime({from:UInt32}))
-		  AND date < toDate(toDateTime({to:UInt32}))
-	`, table)
-
-	args := namedArgs(
-		clickhouse.Named("org_id", params.OrgID),
-		clickhouse.Named("from", uint32(params.From.Unix())),
-		clickhouse.Named("to", uint32(params.To.Unix())),
-	)
-
-	if params.ProjectID != "" {
-		query += ` AND project_id = {project_id:String}`
-		args = append(args, clickhouse.Named("project_id", params.ProjectID))
-	}
-
-	query += fmt.Sprintf(`
+		  AND date < toDate(toDateTime({to:UInt32}))%s
 		GROUP BY model, provider
 		ORDER BY cost_usd DESC
 		LIMIT %d
-	`, limit)
+	`, table, projSQL, limit)
 
 	rows, err := s.conn.Query(ctx, query, args...)
 	if err != nil {
@@ -291,6 +276,15 @@ func (s *ClickHouseStore) getCostByModel(ctx context.Context, params DashboardQu
 
 func (s *ClickHouseStore) getCostByTag(ctx context.Context, params DashboardQueryParams, tagKey string, limit int) ([]domain.CostBreakdownItem, error) {
 	table := selectMV("mv_cost_by_tag_daily", params.ProjectID)
+	projSQL, projArgs := projectFilter(params)
+
+	args := namedArgs(
+		clickhouse.Named("org_id", params.OrgID),
+		clickhouse.Named("from", uint32(params.From.Unix())),
+		clickhouse.Named("to", uint32(params.To.Unix())),
+		clickhouse.Named("tag_key", tagKey),
+	)
+	args = append(args, projArgs...)
 
 	query := fmt.Sprintf(`
 		SELECT tag_value,
@@ -300,26 +294,11 @@ func (s *ClickHouseStore) getCostByTag(ctx context.Context, params DashboardQuer
 		WHERE org_id = {org_id:UInt64}
 		  AND date >= toDate(toDateTime({from:UInt32}))
 		  AND date < toDate(toDateTime({to:UInt32}))
-		  AND tag_key = {tag_key:String}
-	`, table)
-
-	args := namedArgs(
-		clickhouse.Named("org_id", params.OrgID),
-		clickhouse.Named("from", uint32(params.From.Unix())),
-		clickhouse.Named("to", uint32(params.To.Unix())),
-		clickhouse.Named("tag_key", tagKey),
-	)
-
-	if params.ProjectID != "" {
-		query += ` AND project_id = {project_id:String}`
-		args = append(args, clickhouse.Named("project_id", params.ProjectID))
-	}
-
-	query += fmt.Sprintf(`
+		  AND tag_key = {tag_key:String}%s
 		GROUP BY tag_value
 		ORDER BY cost_usd DESC
 		LIMIT %d
-	`, limit)
+	`, table, projSQL, limit)
 
 	rows, err := s.conn.Query(ctx, query, args...)
 	if err != nil {
@@ -386,17 +365,10 @@ func (s *ClickHouseStore) GetCostTimeseries(ctx context.Context, params Dashboar
 
 func (s *ClickHouseStore) getTimeseriesTotal(ctx context.Context, params DashboardQueryParams, granularity string) ([]domain.TimeseriesSeries, error) {
 	var query string
-	args := namedArgs(
-		clickhouse.Named("org_id", params.OrgID),
-		clickhouse.Named("from", uint32(params.From.Unix())),
-		clickhouse.Named("to", uint32(params.To.Unix())),
-	)
+	projSQL, projArgs := projectFilter(params)
 
-	projectFilter := ""
-	if params.ProjectID != "" {
-		projectFilter = ` AND project_id = {project_id:String}`
-		args = append(args, clickhouse.Named("project_id", params.ProjectID))
-	}
+	args := timeArgs(params)
+	args = append(args, projArgs...)
 
 	switch granularity {
 	case "hour":
@@ -408,7 +380,7 @@ func (s *ClickHouseStore) getTimeseriesTotal(ctx context.Context, params Dashboa
 			FROM %s
 			WHERE org_id = {org_id:UInt64} AND hour >= toDateTime({from:UInt32}) AND hour < toDateTime({to:UInt32})%s
 			GROUP BY hour ORDER BY hour
-		`, table, projectFilter)
+		`, table, projSQL)
 	case "week":
 		table := selectMV("mv_cost_by_model_daily", params.ProjectID)
 		query = fmt.Sprintf(`
@@ -418,7 +390,7 @@ func (s *ClickHouseStore) getTimeseriesTotal(ctx context.Context, params Dashboa
 			FROM %s
 			WHERE org_id = {org_id:UInt64} AND date >= toDate(toDateTime({from:UInt32})) AND date < toDate(toDateTime({to:UInt32}))%s
 			GROUP BY ts ORDER BY ts
-		`, table, projectFilter)
+		`, table, projSQL)
 	default: // "day"
 		table := selectMV("mv_cost_by_model_daily", params.ProjectID)
 		query = fmt.Sprintf(`
@@ -428,7 +400,7 @@ func (s *ClickHouseStore) getTimeseriesTotal(ctx context.Context, params Dashboa
 			FROM %s
 			WHERE org_id = {org_id:UInt64} AND date >= toDate(toDateTime({from:UInt32})) AND date < toDate(toDateTime({to:UInt32}))%s
 			GROUP BY date ORDER BY date
-		`, table, projectFilter)
+		`, table, projSQL)
 	}
 
 	rows, err := s.conn.Query(ctx, query, args...)
@@ -450,18 +422,10 @@ func (s *ClickHouseStore) getTimeseriesTotal(ctx context.Context, params Dashboa
 
 func (s *ClickHouseStore) getTimeseriesByModel(ctx context.Context, params DashboardQueryParams, granularity string) ([]domain.TimeseriesSeries, error) {
 	table := selectMV("mv_cost_by_model_daily", params.ProjectID)
+	projSQL, projArgs := projectFilter(params)
 
-	args := namedArgs(
-		clickhouse.Named("org_id", params.OrgID),
-		clickhouse.Named("from", uint32(params.From.Unix())),
-		clickhouse.Named("to", uint32(params.To.Unix())),
-	)
-
-	projectFilter := ""
-	if params.ProjectID != "" {
-		projectFilter = ` AND project_id = {project_id:String}`
-		args = append(args, clickhouse.Named("project_id", params.ProjectID))
-	}
+	args := timeArgs(params)
+	args = append(args, projArgs...)
 
 	// Get top 5 models by cost
 	topQuery := fmt.Sprintf(`
@@ -469,7 +433,7 @@ func (s *ClickHouseStore) getTimeseriesByModel(ctx context.Context, params Dashb
 		FROM %s
 		WHERE org_id = {org_id:UInt64} AND date >= toDate(toDateTime({from:UInt32})) AND date < toDate(toDateTime({to:UInt32}))%s
 		GROUP BY model ORDER BY cost DESC LIMIT 5
-	`, table, projectFilter)
+	`, table, projSQL)
 
 	topRows, err := s.conn.Query(ctx, topQuery, args...)
 	if err != nil {
@@ -505,7 +469,7 @@ func (s *ClickHouseStore) getTimeseriesByModel(ctx context.Context, params Dashb
 		FROM %s
 		WHERE org_id = {org_id:UInt64} AND date >= toDate(toDateTime({from:UInt32})) AND date < toDate(toDateTime({to:UInt32}))%s
 		GROUP BY ts, model ORDER BY ts
-	`, tsExpr, table, projectFilter)
+	`, tsExpr, table, projSQL)
 
 	detailRows, err := s.conn.Query(ctx, detailQuery, args...)
 	if err != nil {
