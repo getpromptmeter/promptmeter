@@ -25,11 +25,12 @@ services:
     environment:
       CLICKHOUSE_DB: promptmeter
       CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+      CLICKHOUSE_PASSWORD: promptmeter
     volumes:
       - ch_data:/var/lib/clickhouse
     healthcheck:
-      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      test: ["CMD", "clickhouse-client", "--password", "promptmeter", "--query", "SELECT 1"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -86,6 +87,94 @@ services:
       mc mb --ignore-existing local/promptmeter-prompts;
       exit 0;
       "
+
+  ingestion-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.ingestion
+    ports:
+      - "8443:8443"
+    environment:
+      INGESTION_PORT: "8443"
+      PG_URL: postgres://promptmeter:promptmeter@postgres:5432/promptmeter?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      NATS_URL: nats://nats:4222
+      DEPLOYMENT_MODE: self-hosted
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.worker
+    environment:
+      PG_URL: postgres://promptmeter:promptmeter@postgres:5432/promptmeter?sslmode=disable
+      CH_URL: clickhouse://default:promptmeter@clickhouse:9000/promptmeter
+      NATS_URL: nats://nats:4222
+      S3_ENDPOINT: minio:9000
+      S3_BUCKET: promptmeter-prompts
+      S3_ACCESS_KEY: promptmeter
+      S3_SECRET_KEY: promptmeter
+      S3_USE_SSL: "false"
+      BATCH_SIZE: "10000"
+      FLUSH_INTERVAL: 5s
+      WORKER_COUNT: "3"
+      PRICE_REFRESH_INTERVAL: 5m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dashboard-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.dashboard
+    ports:
+      - "8080:8080"
+    environment:
+      DASHBOARD_PORT: "8080"
+      PG_URL: postgres://promptmeter:promptmeter@postgres:5432/promptmeter?sslmode=disable
+      CH_URL: clickhouse://default:promptmeter@clickhouse:9000/promptmeter
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-jwt-secret-change-in-production
+      COOKIE_DOMAIN: localhost
+      CORS_ORIGINS: http://localhost:3000
+      AUTH_MODE: autologin
+      DEPLOYMENT_MODE: self-hosted
+      INTERNAL_SECRET: dev-internal-secret
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dashboard-ui:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.dashboard-ui
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+    depends_on:
+      - dashboard-api
+    profiles: ["full"]
+    restart: unless-stopped
 
 volumes:
   pg_data:

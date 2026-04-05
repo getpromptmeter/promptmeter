@@ -141,3 +141,22 @@ func (s *RedisStore) checkRateLimit(ctx context.Context, key string, limit int, 
 func (s *RedisStore) Client() *redis.Client {
 	return s.client
 }
+
+// --- DashboardCache implementation ---
+
+// GetCached retrieves a cached value by key. Returns nil if not found.
+func (s *RedisStore) GetCached(ctx context.Context, key string) ([]byte, error) {
+	val, err := s.client.Get(ctx, key).Bytes()
+	if err == redis.Nil {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("redis: get cached: %w", err)
+	}
+	return val, nil
+}
+
+// SetCached stores a value with the given TTL.
+func (s *RedisStore) SetCached(ctx context.Context, key string, data []byte, ttl time.Duration) error {
+	return s.client.Set(ctx, key, data, ttl).Err()
+}

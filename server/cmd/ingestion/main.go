@@ -13,6 +13,7 @@ import (
 
 	"github.com/promptmeter/promptmeter/server/internal/config"
 	"github.com/promptmeter/promptmeter/server/internal/ingestion"
+	"github.com/promptmeter/promptmeter/server/internal/migrate"
 	pmqueue "github.com/promptmeter/promptmeter/server/internal/nats"
 	"github.com/promptmeter/promptmeter/server/internal/storage"
 )
@@ -22,6 +23,12 @@ func main() {
 	ctx := context.Background()
 
 	cfg := config.LoadIngestion()
+
+	// Run database migrations before anything else
+	if err := migrate.RunPostgres(cfg.PGURL, logger); err != nil {
+		logger.Error("failed to run postgres migrations", "error", err)
+		os.Exit(1)
+	}
 
 	// Connect to PostgreSQL
 	pgStore, err := storage.NewPostgresStore(ctx, cfg.PGURL)

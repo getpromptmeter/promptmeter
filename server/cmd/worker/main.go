@@ -11,6 +11,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/promptmeter/promptmeter/server/internal/config"
+	"github.com/promptmeter/promptmeter/server/internal/migrate"
 	pmqueue "github.com/promptmeter/promptmeter/server/internal/nats"
 	"github.com/promptmeter/promptmeter/server/internal/storage"
 	"github.com/promptmeter/promptmeter/server/internal/worker"
@@ -21,6 +22,14 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	cfg := config.LoadWorker()
+
+	// Run database migrations before anything else.
+	// ClickHouse migrations are handled exclusively by dashboard-api to avoid
+	// race conditions on the schema_migrations table.
+	if err := migrate.RunPostgres(cfg.PGURL, logger); err != nil {
+		logger.Error("failed to run postgres migrations", "error", err)
+		os.Exit(1)
+	}
 
 	// Connect to PostgreSQL (for model prices)
 	pgStore, err := storage.NewPostgresStore(ctx, cfg.PGURL)

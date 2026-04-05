@@ -45,12 +45,15 @@ func hexVal(b byte) byte {
 
 // Organization represents a tenant in the system.
 type Organization struct {
-	ID                   string   `json:"id"`
-	Name                 string   `json:"name"`
-	Slug                 string   `json:"slug"`
-	Tier                 OrgTier  `json:"tier"`
-	StripeCustomerID     *string  `json:"stripe_customer_id,omitempty"`
-	StripeSubscriptionID *string  `json:"stripe_subscription_id,omitempty"`
+	ID                   string    `json:"id"`
+	Name                 string    `json:"name"`
+	Slug                 string    `json:"slug"`
+	Tier                 OrgTier   `json:"tier"`
+	Timezone             string    `json:"timezone"`
+	PIIEnabled           bool      `json:"pii_enabled"`
+	SlackWebhookURL      *string   `json:"slack_webhook_url,omitempty"`
+	StripeCustomerID     *string   `json:"stripe_customer_id,omitempty"`
+	StripeSubscriptionID *string   `json:"stripe_subscription_id,omitempty"`
 	CreatedAt            time.Time `json:"created_at"`
 	UpdatedAt            time.Time `json:"updated_at"`
 }
@@ -84,16 +87,17 @@ func RateLimitForTier(tier OrgTier) int {
 
 // APIKey represents an SDK API key stored in PostgreSQL.
 type APIKey struct {
-	ID         string    `json:"id"`
-	OrgID      string    `json:"org_id"`
-	KeyPrefix  string    `json:"key_prefix"`
-	KeyHash    string    `json:"key_hash"`
-	Name       string    `json:"name"`
-	Scopes     []string  `json:"scopes"`
+	ID         string     `json:"id"`
+	OrgID      string     `json:"org_id"`
+	ProjectID  *string    `json:"project_id,omitempty"`
+	KeyPrefix  string     `json:"key_prefix"`
+	KeyHash    string     `json:"-"`
+	Name       string     `json:"name"`
+	Scopes     []string   `json:"scopes"`
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
+	CreatedAt  time.Time  `json:"created_at"`
 	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
-	Tier       OrgTier   `json:"tier"`
+	Tier       OrgTier    `json:"tier"`
 }
 
 // HasScope returns true if the API key has the given scope.
@@ -109,6 +113,87 @@ func (k *APIKey) HasScope(scope string) bool {
 // IsRevoked returns true if the API key has been revoked.
 func (k *APIKey) IsRevoked() bool {
 	return k.RevokedAt != nil
+}
+
+// User represents a dashboard user stored in PostgreSQL.
+type User struct {
+	ID        string    `json:"id"`
+	Email     string    `json:"email"`
+	Name      string    `json:"name"`
+	AvatarURL string    `json:"avatar_url,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// RefreshToken represents a refresh token stored in PostgreSQL.
+type RefreshToken struct {
+	ID        string     `json:"id"`
+	UserID    string     `json:"user_id"`
+	TokenHash string     `json:"-"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+// Project represents a logical grouping within an organization.
+type Project struct {
+	ID          string     `json:"id"`
+	OrgID       string     `json:"org_id"`
+	Name        string     `json:"name"`
+	Slug        string     `json:"slug"`
+	Description string     `json:"description"`
+	PIIEnabled  bool       `json:"pii_enabled"`
+	IsDefault   bool       `json:"is_default"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	ArchivedAt  *time.Time `json:"archived_at,omitempty"`
+}
+
+// DashboardRateLimitForTier returns per-org rate limit (requests per minute)
+// for the Dashboard API based on the organization tier.
+func DashboardRateLimitForTier(tier OrgTier) int {
+	switch tier {
+	case TierFree:
+		return 60
+	case TierPro:
+		return 300
+	case TierBusiness:
+		return 1000
+	case TierEnterprise:
+		return 1000
+	default:
+		return 60
+	}
+}
+
+// OverviewKPIs holds aggregated KPI data for the dashboard overview.
+type OverviewKPIs struct {
+	TotalCost     float64 `json:"total_cost"`
+	TotalRequests uint64  `json:"total_requests"`
+	TotalErrors   uint64  `json:"total_errors"`
+	AvgLatencyMs  float64 `json:"avg_latency_ms"`
+}
+
+// CostBreakdownItem represents a single row in a cost breakdown.
+type CostBreakdownItem struct {
+	Group          string  `json:"group"`
+	Provider       string  `json:"provider,omitempty"`
+	CostUSD        float64 `json:"cost_usd"`
+	Requests       uint64  `json:"requests"`
+	Tokens         uint64  `json:"tokens,omitempty"`
+	PercentOfTotal float64 `json:"percent_of_total"`
+}
+
+// TimeseriesPoint represents a single data point on a timeseries chart.
+type TimeseriesPoint struct {
+	Timestamp time.Time `json:"timestamp"`
+	CostUSD   float64   `json:"cost_usd"`
+	Requests  uint64    `json:"requests"`
+}
+
+// TimeseriesSeries represents a named series of timeseries data points.
+type TimeseriesSeries struct {
+	Group  string            `json:"group"`
+	Points []TimeseriesPoint `json:"points"`
 }
 
 // ModelPrice represents a model pricing entry from PostgreSQL.

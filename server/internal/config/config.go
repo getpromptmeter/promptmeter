@@ -47,7 +47,7 @@ type Worker struct {
 func LoadWorker() Worker {
 	return Worker{
 		PGURL:                envOr("PG_URL", "postgres://promptmeter:promptmeter@localhost:5432/promptmeter?sslmode=disable"),
-		CHURL:                envOr("CH_URL", "clickhouse://localhost:9000/promptmeter"),
+		CHURL:                envOr("CH_URL", "clickhouse://default:promptmeter@localhost:9000/promptmeter"),
 		NATSURL:              envOr("NATS_URL", "nats://localhost:4222"),
 		S3Endpoint:           envOr("S3_ENDPOINT", "localhost:9001"),
 		S3Bucket:             envOr("S3_BUCKET", "promptmeter-prompts"),
@@ -78,6 +78,42 @@ func envInt(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+// Dashboard holds configuration for the Dashboard API server.
+type Dashboard struct {
+	Port           string
+	PGURL          string
+	CHURL          string
+	RedisURL       string
+	JWTSecret      string
+	CookieDomain   string
+	CORSOrigins    string
+	AuthMode       string // "oauth" or "autologin"
+	DeploymentMode string
+	InternalSecret string // shared secret with NextAuth.js for oauth-callback
+}
+
+// LoadDashboard loads dashboard config from environment variables.
+func LoadDashboard() Dashboard {
+	deploymentMode := envOr("DEPLOYMENT_MODE", "self-hosted")
+	defaultAuthMode := "autologin"
+	if deploymentMode == "cloud" {
+		defaultAuthMode = "oauth"
+	}
+
+	return Dashboard{
+		Port:           envOr("DASHBOARD_PORT", "8080"),
+		PGURL:          envOr("PG_URL", "postgres://promptmeter:promptmeter@localhost:5432/promptmeter?sslmode=disable"),
+		CHURL:          envOr("CH_URL", "clickhouse://default:promptmeter@localhost:9000/promptmeter"),
+		RedisURL:       envOr("REDIS_URL", "redis://localhost:6379"),
+		JWTSecret:      envOr("JWT_SECRET", "dev-jwt-secret-change-in-production"),
+		CookieDomain:   envOr("COOKIE_DOMAIN", "localhost"),
+		CORSOrigins:    envOr("CORS_ORIGINS", "http://localhost:3000"),
+		AuthMode:       envOr("AUTH_MODE", defaultAuthMode),
+		DeploymentMode: deploymentMode,
+		InternalSecret: envOr("INTERNAL_SECRET", "dev-internal-secret"),
+	}
 }
 
 func envDuration(key string, fallback time.Duration) time.Duration {
