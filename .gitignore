@@ -1,5 +1,10 @@
 # Binaries
 bin/
+server/seed
+server/trafficgen
+server/ingestion
+server/dashboard
+server/worker
 *.exe
 *.dll
 *.so
