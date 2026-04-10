@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { usePeriod } from "@/lib/period-context";
 import { useOverview } from "@/lib/api/hooks/use-overview";
 import { useCost } from "@/lib/api/hooks/use-cost";
 import { useCostTimeseries } from "@/lib/api/hooks/use-cost-timeseries";
@@ -13,7 +14,7 @@ import { Zap, Code } from "lucide-react";
 
 export default function OverviewPage() {
   const searchParams = useSearchParams();
-  const period = searchParams.get("period") || "7d";
+  const { period } = usePeriod();
   const project = searchParams.get("project") || undefined;
 
   const overview = useOverview({ period, project });

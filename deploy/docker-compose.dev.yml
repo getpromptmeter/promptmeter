@@ -163,6 +163,40 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  seed:
+    profiles: ["demo"]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.seed
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    environment:
+      CH_DSN: "clickhouse://default:promptmeter@clickhouse:9000/promptmeter"
+      PG_DSN: "postgres://promptmeter:promptmeter@postgres:5432/promptmeter?sslmode=disable"
+    command: ["--days", "30", "--org", "demo", "--events-per-day", "5000"]
+    restart: "no"
+
+  trafficgen:
+    profiles: ["demo"]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.trafficgen
+    depends_on:
+      ingestion-api:
+        condition: service_started
+      seed:
+        condition: service_completed_successfully
+    environment:
+      PM_API_URL: "http://ingestion-api:8443"
+      PM_API_KEY: "pm_test_SeedDemoKeyForDev000000000000000"
+    command: ["--rps", "3", "--scenario", "normal"]
+    restart: unless-stopped
+
   dashboard-ui:
     build:
       context: ..

@@ -1,29 +1,19 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { PeriodProvider, usePeriod } from "@/lib/period-context";
 
 function CoreLayoutInner({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
-
-  const period = searchParams.get("period") || "7d";
-
-  function handlePeriodChange(newPeriod: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("period", newPeriod);
-    router.push(`${pathname}?${params.toString()}`);
-  }
+  const { period, setPeriod } = usePeriod();
 
   return (
     <div className="flex h-screen flex-col">
       <Header
         period={period}
-        onPeriodChange={handlePeriodChange}
+        onPeriodChange={setPeriod}
         onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
       <div className="flex flex-1 overflow-hidden">
@@ -41,7 +31,9 @@ export default function CoreLayout({
 }) {
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center">Loading...</div>}>
-      <CoreLayoutInner>{children}</CoreLayoutInner>
+      <PeriodProvider>
+        <CoreLayoutInner>{children}</CoreLayoutInner>
+      </PeriodProvider>
     </Suspense>
   );
 }
