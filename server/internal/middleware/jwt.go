@@ -84,15 +84,10 @@ func AutoLoginMiddleware(secret string, defaultUserID, defaultOrgID string, defa
 				MaxAge:   900, // 15 min
 			})
 
-			// Inject claims into context
-			ctx := r.Context()
-			ctx = context.WithValue(ctx, CtxUserID, defaultUserID)
-			ctx = context.WithValue(ctx, CtxOrgID, defaultOrgID)
-			ctx = context.WithValue(ctx, CtxOrgNum, defaultOrgNumeric)
-			ctx = context.WithValue(ctx, CtxOrgTier, domain.TierFree)
-			ctx = context.WithValue(ctx, CtxRole, "owner")
+			// Add cookie to the request so downstream JWTAuthMiddleware sees it.
+			r.AddCookie(&http.Cookie{Name: "pm_session", Value: token})
 
-			next.ServeHTTP(w, r.WithContext(ctx))
+			next.ServeHTTP(w, r)
 		})
 	}
 }

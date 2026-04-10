@@ -251,7 +251,7 @@ func (s *ClickHouseStore) getCostByModel(ctx context.Context, params DashboardQu
 		FROM %s
 		WHERE org_id = {org_id:UInt64}
 		  AND date >= toDate(toDateTime({from:UInt32}))
-		  AND date < toDate(toDateTime({to:UInt32}))%s
+		  AND date <= toDate(toDateTime({to:UInt32}))%s
 		GROUP BY model, provider
 		ORDER BY cost_usd DESC
 		LIMIT %d
@@ -293,7 +293,7 @@ func (s *ClickHouseStore) getCostByTag(ctx context.Context, params DashboardQuer
 		FROM %s
 		WHERE org_id = {org_id:UInt64}
 		  AND date >= toDate(toDateTime({from:UInt32}))
-		  AND date < toDate(toDateTime({to:UInt32}))
+		  AND date <= toDate(toDateTime({to:UInt32}))
 		  AND tag_key = {tag_key:String}%s
 		GROUP BY tag_value
 		ORDER BY cost_usd DESC
@@ -326,7 +326,7 @@ func (s *ClickHouseStore) getCostByProject(ctx context.Context, params Dashboard
 		FROM mv_cost_by_model_daily_v2_target
 		WHERE org_id = {org_id:UInt64}
 		  AND date >= toDate(toDateTime({from:UInt32}))
-		  AND date < toDate(toDateTime({to:UInt32}))
+		  AND date <= toDate(toDateTime({to:UInt32}))
 		GROUP BY project_id
 		ORDER BY cost_usd DESC
 		LIMIT %d
@@ -388,7 +388,7 @@ func (s *ClickHouseStore) getTimeseriesTotal(ctx context.Context, params Dashboa
 			       sum(total_cost) AS cost_usd,
 			       sum(request_count) AS requests
 			FROM %s
-			WHERE org_id = {org_id:UInt64} AND date >= toDate(toDateTime({from:UInt32})) AND date < toDate(toDateTime({to:UInt32}))%s
+			WHERE org_id = {org_id:UInt64} AND date >= toDate(toDateTime({from:UInt32})) AND date <= toDate(toDateTime({to:UInt32}))%s
 			GROUP BY ts ORDER BY ts
 		`, table, projSQL)
 	default: // "day"
@@ -398,7 +398,7 @@ func (s *ClickHouseStore) getTimeseriesTotal(ctx context.Context, params Dashboa
 			       sum(total_cost) AS cost_usd,
 			       sum(request_count) AS requests
 			FROM %s
-			WHERE org_id = {org_id:UInt64} AND date >= toDate(toDateTime({from:UInt32})) AND date < toDate(toDateTime({to:UInt32}))%s
+			WHERE org_id = {org_id:UInt64} AND date >= toDate(toDateTime({from:UInt32})) AND date <= toDate(toDateTime({to:UInt32}))%s
 			GROUP BY date ORDER BY date
 		`, table, projSQL)
 	}
@@ -431,7 +431,7 @@ func (s *ClickHouseStore) getTimeseriesByModel(ctx context.Context, params Dashb
 	topQuery := fmt.Sprintf(`
 		SELECT model, sum(total_cost) AS cost
 		FROM %s
-		WHERE org_id = {org_id:UInt64} AND date >= toDate(toDateTime({from:UInt32})) AND date < toDate(toDateTime({to:UInt32}))%s
+		WHERE org_id = {org_id:UInt64} AND date >= toDate(toDateTime({from:UInt32})) AND date <= toDate(toDateTime({to:UInt32}))%s
 		GROUP BY model ORDER BY cost DESC LIMIT 5
 	`, table, projSQL)
 
@@ -467,7 +467,7 @@ func (s *ClickHouseStore) getTimeseriesByModel(ctx context.Context, params Dashb
 		       sum(total_cost) AS cost_usd,
 		       sum(request_count) AS requests
 		FROM %s
-		WHERE org_id = {org_id:UInt64} AND date >= toDate(toDateTime({from:UInt32})) AND date < toDate(toDateTime({to:UInt32}))%s
+		WHERE org_id = {org_id:UInt64} AND date >= toDate(toDateTime({from:UInt32})) AND date <= toDate(toDateTime({to:UInt32}))%s
 		GROUP BY ts, model ORDER BY ts
 	`, tsExpr, table, projSQL)
 
