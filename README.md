@@ -34,6 +34,12 @@ cd promptmeter
 docker compose -f deploy/docker-compose.dev.yml --profile full up
 ```
 
+To start with 30 days of pre-populated data and live traffic:
+
+```bash
+docker compose -f deploy/docker-compose.dev.yml --profile full --profile demo up
+```
+
 An API key is printed in the dashboard-api logs on first startup. You can also create keys in the UI at Settings > API Keys.
 
 The dashboard will be available at `http://localhost:3000`, the ingestion API at `http://localhost:8443`.
@@ -65,7 +71,38 @@ Install with `pip install -e ./sdk/python`.
 - **Dashboard UI** -- Next.js 16 with Overview page (KPI cards, cost charts, cost tables), Settings pages (General, API Keys), Login, Welcome screen
 - **Auth** -- JWT + refresh tokens, OAuth (Google/GitHub), autologin for self-hosted
 - **Storage layer** -- ClickHouse (analytics + materialized views), PostgreSQL (state), Redis (cache/rate limits), S3 (prompt text)
-- **Dev environment** -- single `docker compose up` brings up everything
+- **Data generators** -- `cmd/seed` (backfill ClickHouse directly), `cmd/trafficgen` (send events through full pipeline), shared `internal/datagen` (realistic model distributions, token patterns, business-hours traffic)
+- **Dev environment** -- single `docker compose up` brings up everything; `--profile demo` adds seed + live traffic
+
+## Development
+
+### Seed historical data
+
+Batch-inserts events directly into ClickHouse (bypasses NATS). Creates a demo org, user (`admin@localhost`), 3 projects, and an API key. Deterministic -- same seed produces same event IDs, safe to re-run (ReplacingMergeTree deduplicates).
+
+```bash
+cd server && go run ./cmd/seed --days 30 --events-per-day 5000
+```
+
+Flags: `--days 30`, `--org demo`, `--events-per-day 5000`, `--seed 42`, `--batch-size 10000`, `--drop` (wipe existing data first).
+
+### Live traffic generator
+
+Sends events through the full pipeline (HTTP -> Ingestion API -> NATS -> Worker -> ClickHouse). Useful for testing alerting, rate limiting, and dashboard refresh.
+
+```bash
+cd server && go run ./cmd/trafficgen --rps 3 --scenario normal --api-url http://localhost:8443 --api-key pm_live_xxx
+```
+
+Flags: `--rps 3`, `--scenario normal|spike|anomaly`, `--duration 0` (infinite), `--batch-size 10`.
+
+### Demo profile
+
+The `demo` Docker Compose profile runs both generators automatically: `seed` runs once on startup, then `trafficgen` sends 3 RPS continuously.
+
+```bash
+docker compose -f deploy/docker-compose.dev.yml --profile full --profile demo up
+```
 
 ## Roadmap
 
