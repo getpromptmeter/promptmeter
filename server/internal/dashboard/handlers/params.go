@@ -78,6 +78,14 @@ func parseDashboardParams(r *http.Request) (storage.DashboardQueryParams, string
 	}, period, nil
 }
 
+// parseFilterParams extracts cost filter parameters from the request.
+func parseFilterParams(r *http.Request) (model, provider, feature string) {
+	model = r.URL.Query().Get("model")
+	provider = r.URL.Query().Get("provider")
+	feature = r.URL.Query().Get("feature")
+	return
+}
+
 // cacheKey generates a deterministic cache key for dashboard queries.
 func cacheKey(orgID string, endpoint string, params ...string) string {
 	h := sha256.New()

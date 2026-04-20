@@ -48,6 +48,8 @@ func NewRouter(cfg ServerConfig) http.Handler {
 	costHandler := handlers.NewCostHandler(cfg.CH, cfg.Redis, cfg.Logger)
 	apiMux.HandleFunc("GET /api/v1/dashboard/cost", costHandler.HandleCostBreakdown)
 	apiMux.HandleFunc("GET /api/v1/dashboard/cost/timeseries", costHandler.HandleCostTimeseries)
+	apiMux.HandleFunc("GET /api/v1/dashboard/cost/compare", costHandler.HandleCostCompare)
+	apiMux.HandleFunc("GET /api/v1/dashboard/cost/filters", costHandler.HandleCostFilters)
 
 	// CRUD handlers
 	apiKeysHandler := handlers.NewAPIKeysHandler(cfg.PG, cfg.Redis, cfg.Logger)

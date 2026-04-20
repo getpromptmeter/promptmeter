@@ -196,6 +196,43 @@ type TimeseriesSeries struct {
 	Points []TimeseriesPoint `json:"points"`
 }
 
+// CostCompareResponse holds the result of comparing two time periods.
+type CostCompareResponse struct {
+	Current   CostComparePeriod          `json:"current"`
+	Previous  CostComparePeriod          `json:"previous"`
+	Changes   CostCompareChanges         `json:"changes"`
+	Breakdown []CostCompareBreakdownItem `json:"breakdown"`
+}
+
+// CostComparePeriod holds aggregate metrics for a single period.
+type CostComparePeriod struct {
+	TotalCost float64 `json:"total_cost"`
+	Requests  uint64  `json:"requests"`
+}
+
+// CostCompareChanges holds computed deltas between two periods.
+type CostCompareChanges struct {
+	CostDelta      float64  `json:"cost_delta"`
+	CostPercent    *float64 `json:"cost_percent"`
+	RequestPercent *float64 `json:"request_percent"`
+}
+
+// CostCompareBreakdownItem represents a single row in a compare breakdown.
+type CostCompareBreakdownItem struct {
+	Group        string   `json:"group"`
+	CurrentCost  float64  `json:"current_cost"`
+	PreviousCost float64  `json:"previous_cost"`
+	CostChange   *float64 `json:"cost_change"`
+	Requests     uint64   `json:"requests"`
+}
+
+// CostFiltersResponse holds available filter values for dropdowns.
+type CostFiltersResponse struct {
+	Models    []string `json:"models"`
+	Providers []string `json:"providers"`
+	Features  []string `json:"features"`
+}
+
 // ModelPrice represents a model pricing entry from PostgreSQL.
 type ModelPrice struct {
 	ID                    string    `json:"id"`

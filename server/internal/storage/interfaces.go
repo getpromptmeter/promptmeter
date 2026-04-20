@@ -109,11 +109,14 @@ type APIKeyManager interface {
 
 // DashboardQueryParams holds common parameters for dashboard queries.
 type DashboardQueryParams struct {
-	OrgID     uint64
-	ProjectID string
-	From      time.Time
-	To        time.Time
-	Timezone  string
+	OrgID          uint64
+	ProjectID      string
+	From           time.Time
+	To             time.Time
+	Timezone       string
+	ModelFilter    string
+	ProviderFilter string
+	FeatureFilter  string
 }
 
 // DashboardReader provides read-only access to ClickHouse for dashboard queries.
@@ -122,8 +125,12 @@ type DashboardReader interface {
 	GetOverviewKPIs(ctx context.Context, params DashboardQueryParams) (*domain.OverviewKPIs, error)
 	// GetCostBreakdown returns cost breakdown by model or feature.
 	GetCostBreakdown(ctx context.Context, params DashboardQueryParams, groupBy string, limit int) ([]domain.CostBreakdownItem, error)
-	// GetCostTimeseries returns cost timeseries data, optionally split by model.
+	// GetCostTimeseries returns cost timeseries data, optionally split by model or feature.
 	GetCostTimeseries(ctx context.Context, params DashboardQueryParams, groupBy string, granularity string) ([]domain.TimeseriesSeries, error)
+	// GetCostCompare compares cost data across two time periods.
+	GetCostCompare(ctx context.Context, currentParams, previousParams DashboardQueryParams, groupBy string, limit int) (*domain.CostCompareResponse, error)
+	// GetCostFilters returns distinct filter values for dropdown population.
+	GetCostFilters(ctx context.Context, params DashboardQueryParams) (*domain.CostFiltersResponse, error)
 }
 
 // DashboardCache provides caching for dashboard query results.

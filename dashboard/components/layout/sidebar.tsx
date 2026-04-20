@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Settings } from "lucide-react";
+import { LayoutDashboard, DollarSign, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { label: "Overview", href: "/overview", icon: LayoutDashboard },
+  { label: "Cost Explorer", href: "/cost", icon: DollarSign },
 ];
 
 const settingsItems = [

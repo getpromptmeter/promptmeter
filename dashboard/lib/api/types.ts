@@ -89,6 +89,40 @@ export interface TimeseriesResponse {
   granularity: "hour" | "day" | "week";
 }
 
+// Cost Compare
+export interface CostComparePeriod {
+  total_cost: number;
+  requests: number;
+}
+
+export interface CostCompareChanges {
+  cost_delta: number;
+  cost_percent: number | null;
+  request_percent: number | null;
+}
+
+export interface CostCompareBreakdownItem {
+  group: string;
+  current_cost: number;
+  previous_cost: number;
+  cost_change: number | null;
+  requests: number;
+}
+
+export interface CostCompareResponse {
+  current: CostComparePeriod;
+  previous: CostComparePeriod;
+  changes: CostCompareChanges;
+  breakdown: CostCompareBreakdownItem[];
+}
+
+// Cost Filters
+export interface CostFiltersResponse {
+  models: string[];
+  providers: string[];
+  features: string[];
+}
+
 // API Keys
 export interface APIKey {
   id: string;
